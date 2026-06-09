@@ -1,0 +1,19 @@
+# Environment
+.env
+.env.*
+*.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ML model weights
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Logs
+*.log
