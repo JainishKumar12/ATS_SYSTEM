@@ -147,27 +147,27 @@ with st.sidebar:
                 use_container_width=True,
             )
     
-    # main content area - render based on current view
-    if st.session_state.current_view == 'landing':
-        # import and render landing page 
-        from frontend.views import landing
-        landing.render()
+# main content area - render based on current view
+if st.session_state.current_view == 'landing':
+    # import and render landing page 
+    from frontend.views import landing
+    landing.render()
+
+elif st.session_state.current_view == 'scorer':
+    # import and render scorer page 
+    from frontend.views import scorer
+    scorer.render()
+
+elif st.session_state.current_view == 'history':
+    # import and render history page 
+    from frontend.views import history
+    history.render()
+
+elif st.session_state.current_view == 'resources':
+    # import and render resources page 
+    from frontend.views import resources
+    resources.render()
+
+
+
     
-    elif st.session_state.current_view == 'scorer':
-        # import and render scorer page 
-        from frontend.views import scorer
-        scorer.render()
-
-    elif st.session_state.current_view == 'history':
-        # import and render history page 
-        from frontend.views import history
-        history.render()
-
-    elif st.session_state.current_view == 'resources':
-        # import and render resources page 
-        from frontend.views import resources
-        resources.render()
-
-
-
-        
