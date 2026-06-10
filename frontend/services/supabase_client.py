@@ -98,7 +98,9 @@ def google_oauth_url() -> Dict[str, Any]:
     try:
         resp = get_client().auth.sign_in_with_oauth({
             'provider': 'google',
-            'options': {'redirect_to': OAUTH_REDIRECT_URL},
+            'options': {'redirect_to': OAUTH_REDIRECT_URL,
+                        'flow_type': 'implicit'
+                        },
         })
         return {'url': resp.url}
     except Exception as exc:
