@@ -1,5 +1,5 @@
 import io 
-import magic # magic reads the actual file contents to detect its real type — not just the extension. 
+import filetype
 from typing import Tuple, Optional
 import pdfplumber
 from docx import Document
@@ -38,14 +38,23 @@ def validate_file(file_data:bytes , filename:str) -> Tuple[bool , str, Optional[
         return False, 'file is empty. Please upload a valid resume or try again.', None
     
     try:
-        mime_type = magic.from_buffer(file_data, mime=True)
+        kind = filetype.guess(file_data)
+        mime_type = kind.mime if kind else None
+        if mime_type is None:
+            ext = filename.rsplit('.', 1)[-1].lower()
+            mime_map = {
+                'pdf': 'application/pdf',
+                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'doc': 'application/msword'
+            }
+            mime_type = mime_map.get(ext, '')
     except Exception as e:
-        return False , f'error determining file type: {str(e)}', None
+        return False, f'error determining file type: {str(e)}', None
     
     if mime_type not in SUPPORTED_MIME_TYPES:
         supported=', '.join(SUPPORTED_MIME_TYPES.keys()).upper()
         return False,(
-            f'unsuported file type: {mime_type} '
+            f'unsupported file type: {mime_type} '
             f'Please upload one of: {supported}.' 
         ), None
     
@@ -54,9 +63,9 @@ def validate_file(file_data:bytes , filename:str) -> Tuple[bool , str, Optional[
 def _extract_pdf_hyperlinks(file_data: bytes) -> str:
     urls = []
     try:
-        reader = PyPDF2.PdfReader(io.BytesIO(file_data))   # PyPDF2 expect a file object (something they can .read() from). But we have raw bytes in memory, not a file on disk. io.BytesIO wraps bytes and makes them behave like a file — without actually saving anything to disk.
+        reader = PyPDF2.PdfReader(io.BytesIO(file_data))
         for page in reader.pages:
-            if '/Annots' in page:    # Annots = annotations = where links live
+            if '/Annots' in page:
                 continue
             for annot_ref in page['/Annots']:
                 try:
@@ -64,14 +73,14 @@ def _extract_pdf_hyperlinks(file_data: bytes) -> str:
                     if annot.get('/Subtype') != '/Link':
                         continue
                     action = annot.get('/A', {})
-                    uri = action.get('/URI' , '')
-                    if uri and isinstance(uri, (str, bytes)):   # PDF internals use / prefixed keys like /Annots, /URI — that's just PDF's internal format. The code digs through this structure to find actual URLs.
+                    uri = action.get('/URI', '')
+                    if uri and isinstance(uri, (str, bytes)):
                         if isinstance(uri, bytes):
                             uri = uri.decode('utf-8', errors='ignore')
                         uri = uri.strip()
                         if uri.startswith('http'):
                             urls.append(uri)
-                except Exception :
+                except Exception:
                     pass
     except Exception:
         pass
@@ -119,15 +128,14 @@ def _extract_pdf_with_pypdf2(file_data: bytes) -> str:
 
 def extract_text_from_pdf(file_data: bytes) -> str:
     try: 
-        result, used_fallback=with_fallback(
-        _extract_pdf_with_pdfplumber, 
-        _extract_pdf_with_pypdf2, 
-        file_data, 
-        log_fallback=True
-    )
-    
+        result, used_fallback = with_fallback(
+            _extract_pdf_with_pdfplumber, 
+            _extract_pdf_with_pypdf2, 
+            file_data, 
+            log_fallback=True
+        )
         if used_fallback:
-            log_info('PDF EXTRACTION succeded using the PyPDF2 fallback', context='resume_parser')
+            log_info('PDF EXTRACTION succeeded using the PyPDF2 fallback', context='resume_parser')
         return result
         
     except Exception as e:
@@ -137,7 +145,6 @@ def extract_text_from_pdf(file_data: bytes) -> str:
             'The PDF may be corrupted, password-protected, or contain only scanned images. '
             'Please ensure it contains selectable text.'
         ) from e
-    
 
 def extract_text_from_docx(file_data: bytes) -> str:
     try:
@@ -163,7 +170,7 @@ def extract_text_from_docx(file_data: bytes) -> str:
             )
         
         try:
-            for rel in doc.part.rels.values():   # DOCX stores hyperlinks in relationships — a separate internal section. This digs them out the same way the PDF hyperlink extractor did.
+            for rel in doc.part.rels.values():
                 if 'hyperlink' in rel.reltype.lower():
                     url = rel._target
                     if isinstance(url, str) and url.startswith('http'):
@@ -175,7 +182,7 @@ def extract_text_from_docx(file_data: bytes) -> str:
         return text.strip()
 
     except FileParsingError:
-        raise   # Re-raise unchanged — don't wrap in another FileParsingError
+        raise
 
     except Exception as e:
         log_error(e, context='extract_text_from_docx')
@@ -192,47 +199,42 @@ def extract_text_from_doc(file_data: bytes) -> str:
         'You can convert using Microsoft Word, Google Docs, or online tools.'
     )
 
-def extract_text(file_data:bytes, file_type:str)->str:
-    if file_type=='pdf':
+def extract_text(file_data: bytes, file_type: str) -> str:
+    if file_type == 'pdf':
         return extract_text_from_pdf(file_data)
-    elif file_type=='docx':
+    elif file_type == 'docx':
         return extract_text_from_docx(file_data)
-    elif file_type=='doc':
+    elif file_type == 'doc':
         return extract_text_from_doc(file_data)
     else:
         raise FileValidationError(
             f'invalid file type: {file_type}. supported types are: pdf, docx and doc'
-
-
         )
-    
-def parse_resume_file(file_data: bytes, filename:str)->Tuple[str, dict]:
-    log_info(f'parsing file :{filename}', context='parse_Resume_file')
 
-    #phase01:validate file
+def parse_resume_file(file_data: bytes, filename: str) -> Tuple[str, dict]:
+    log_info(f'parsing file: {filename}', context='parse_resume_file')
+
     try:
-        is_valid, error_msg, file_type=validate_file(file_data, filename)
+        is_valid, error_msg, file_type = validate_file(file_data, filename)
         if not is_valid:
-            log_warning(f'valiudation failed for file {filename}', context='parse_resume_file')
+            log_warning(f'validation failed for file {filename}', context='parse_resume_file')
             raise FileValidationError(error_msg)
     
-    except FileValidationError as e:
-        raise 
+    except FileValidationError:
+        raise
 
     except Exception as e:
         log_error(e, context='parse_resume_file_validation')
         raise FileValidationError(
             'Could not validate the uploaded file. Please ensure it is a valid PDF or DOCX.'
         ) from e
-    
-    #phase02: extraction of file
 
     try:
         text = extract_text(file_data, file_type)
         log_info(f'Extracted {len(text)} chars from {filename}', context='parse_resume_file')
 
     except FileParsingError:
-        raise   # Re-raise unchanged
+        raise
 
     except Exception as e:
         log_error(e, context='parse_resume_file_extraction')
@@ -241,7 +243,7 @@ def parse_resume_file(file_data: bytes, filename:str)->Tuple[str, dict]:
             'Please try again or contact support if the problem persists.'
         ) from e
 
-    metadata = {     # Why return metadata? The rest of the app might want to know file size, type, how much text was extracted — without having to recalculate it.
+    metadata = {
         'filename':        filename,
         'file_type':       file_type,
         'file_size_bytes': len(file_data),
@@ -249,39 +251,3 @@ def parse_resume_file(file_data: bytes, filename:str)->Tuple[str, dict]:
         'success':         True,
     }
     return text, metadata
-
-"""parse_resume_file()
-    ├── Phase 1: validate_file()
-    │       ├── check size
-    │       ├── check empty
-    │       └── check MIME type
-    │
-    └── Phase 2: extract_text()
-            ├── pdf  → extract_text_from_pdf()
-            │           ├── try pdfplumber (primary)
-            │           ├── try PyPDF2 (fallback)
-            │           └── + hyperlinks from _extract_pdf_hyperlinks()
-            │
-            ├── docx → extract_text_from_docx()
-            │           ├── paragraphs
-            │           ├── tables
-            │           └── + hyperlinks from relationships
-            │
-            └── doc  → raise error (not supported)"""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
