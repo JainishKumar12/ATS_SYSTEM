@@ -82,10 +82,11 @@ def _call_groq(client: Groq, system_prompt: str, user_prompt: str) -> str:
             {'role': 'user', 'content': user_prompt}
         ],
         temperature=0.0,
-        max_tokens=4096
+        max_tokens=4096,
+        response_format={"type": "json_object"}
     )
     elapsed = time.time() - start
-    logger.info(f"Groq call took {elapsed:.2f}s, {response.usage.completion_tokens} tokens out")
+    print(f"Groq call took {elapsed:.2f}s, {response.usage.completion_tokens} tokens out")
     return response.choices[0].message.content.strip()
 
 def _try_parse_json(text: str)-> dict |None:
