@@ -3,6 +3,7 @@ import logging
 import json 
 from typing import Dict
 from groq import Groq
+import time 
 
 logger=logging.getLogger('ats_resume_scorer')
 
@@ -72,16 +73,19 @@ Important instructions:
 Resume Text:
 {raw_text}"""
 
-def _call_groq(client:Groq, system_prompt:str, user_prompt:str)-> str:
-    response=client.chat.completions.create(
+def _call_groq(client: Groq, system_prompt: str, user_prompt: str) -> str:
+    start = time.time()
+    response = client.chat.completions.create(
         model=GROQ_MODEL,
         messages=[
-            {'role':'system', 'content': system_prompt},
-            {'role':'user', 'content': user_prompt}
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': user_prompt}
         ],
         temperature=0.0,
         max_tokens=4096
     )
+    elapsed = time.time() - start
+    logger.info(f"Groq call took {elapsed:.2f}s, {response.usage.completion_tokens} tokens out")
     return response.choices[0].message.content.strip()
 
 def _try_parse_json(text: str)-> dict |None:
