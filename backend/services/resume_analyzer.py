@@ -147,6 +147,10 @@ def analyze_full_resume(
         "skill_validation_details": skill_validation_details,
         "experience_months": experience_months,
     }
+    print("ISSUES COUNT:", len(detailed_feedback))
+
+    for issue in detailed_feedback:
+        print(issue.issue_title)
 
 
 def _generate_strengths(
