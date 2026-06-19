@@ -15,6 +15,12 @@ STREET_ADDRESS_PATTERN = (
     r'(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Way|Place|Pl)\b'
 )
 
+def _cosine_sim_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Cosine similarity between every row of a and every row of b. Returns shape (len(a), len(b))."""
+    a_norm = a / np.linalg.norm(a, axis=1, keepdims=True).clip(min=1e-8)
+    b_norm = b / np.linalg.norm(b, axis=1, keepdims=True).clip(min=1e-8)
+    return np.clip(a_norm @ b_norm.T, 0.0, 1.0)
+
 # This is used EVERYWHERE in scoring. It gives points based on reaching thresholds — like grades
 def _tier_score(n: float, tiers:list)-> float:
     for threshold, pts in tiers:
@@ -73,23 +79,6 @@ def detect_location_info(text: str, nlp: spacy.Language) -> Dict:
         'penalty_applied':    penalty,
     }
 
-def _calculate_semantic_similarity(skill: str, text: str, embedder: SentenceTransformer) -> float:
-    #similarity = (A · B) / (|A| × |B|)
-    if not skill or not text:
-        return 0.0
-    try:
-        skill_vec  = embedder.encode(skill, convert_to_tensor=False)
-        text_vec   = embedder.encode(text,  convert_to_tensor=False)
-
-        similarity = np.dot(skill_vec, text_vec) / (
-            np.linalg.norm(skill_vec) * np.linalg.norm(text_vec)   # np.linalg.norm → measures the "length" of a vector
-        )
-
-        return float(max(0.0, min(1.0, similarity)))   # max(0.0, min(1.0, similarity)) → clamps result between 0 and 1, negative values become 0.
-    except Exception as e:
-        log_warning(f"Similarity error for '{skill}': {e}", context='ats_scorer')
-        return 0.0
-
 def _skill_matches(skill: str, text: str, embedder: SentenceTransformer, threshold: float) -> Tuple[bool, float]:
 
     #fast, o(n) directly check if skill is a substring of the text (case-insensitive)
@@ -108,7 +97,7 @@ def validate_skills_with_projects(
     embedder: SentenceTransformer,
     threshold: float = 0.6,
 ) -> Dict:
-    
+ 
     if not skills:
         return {
             'validated_skills':      [],
@@ -117,45 +106,87 @@ def validate_skills_with_projects(
             'skill_project_mapping': {},
             'validation_score':      0.0,
         }
-
+ 
     experience_text = ' '.join(
         f"{e.get('job_title', '')} {e.get('company', '')} {e.get('description', '')}"
         for e in experience_entries
         if isinstance(e, dict)
     ).strip()
-
+ 
+    project_texts = [
+        f"{p.get('title', '')} {p.get('description', '')}".strip() or "untitled"
+        for p in projects
+    ]
+ 
+    # Build the full list of "target" texts we need to compare skills against:
+    # each project, plus experience (if present)
+    target_texts = list(project_texts)
+    has_experience = bool(experience_text)
+    if has_experience:
+        target_texts.append(experience_text)
+ 
     validated_skills      = []
     unvalidated_skills    = []
     skill_project_mapping = {}
-
-    for skill in skills:
+ 
+    if not target_texts:
+        # No projects and no experience to validate against at all
+        for skill in skills:
+            unvalidated_skills.append(skill)
+            skill_project_mapping[skill] = []
+        validation_percentage = 0.0
+        validation_score = 0.0
+        return {
+            'validated_skills':      validated_skills,
+            'unvalidated_skills':    unvalidated_skills,
+            'validation_percentage': validation_percentage,
+            'skill_project_mapping': skill_project_mapping,
+            'validation_score':      validation_score,
+        }
+ 
+    # ONE batched encode call for all skills, ONE batched encode call for all targets.
+    # This replaces what used to be up to (skills * targets * 2) separate encode() calls.
+    skill_vecs  = embedder.encode(skills, convert_to_tensor=False, batch_size=32)
+    target_vecs = embedder.encode(target_texts, convert_to_tensor=False, batch_size=32)
+ 
+    sim_matrix = _cosine_sim_matrix(np.array(skill_vecs), np.array(target_vecs))
+    # sim_matrix[i][j] = similarity between skills[i] and target_texts[j]
+ 
+    for i, skill in enumerate(skills):
         matching_projects = []
-        max_similarity    = 0.0
-
-        for project in projects:
-            project_text = f"{project.get('title', '')} {project.get('description', '')}"
-            matched, sim = _skill_matches(skill, project_text, embedder, threshold)
+        max_similarity = 0.0
+        skill_lower = skill.lower()
+ 
+        for j, target_text in enumerate(target_texts):
+            is_experience_row = has_experience and j == len(target_texts) - 1
+ 
+            # fast substring check still short-circuits, same as before
+            if skill_lower in target_text.lower():
+                matched, sim = True, 1.0
+            else:
+                sim = float(sim_matrix[i][j])
+                matched = sim >= threshold
+ 
             max_similarity = max(max_similarity, sim)
-
+ 
             if matched:
-                matching_projects.append(project.get('title', 'Untitled Project'))
-
-        if experience_text:
-            matched, sim = _skill_matches(skill, experience_text, embedder, threshold)
-            max_similarity = max(max_similarity, sim)
-            if matched and 'Experience Section' not in matching_projects:
-                matching_projects.append('Experience Section')
-
+                if is_experience_row:
+                    if 'Experience Section' not in matching_projects:
+                        matching_projects.append('Experience Section')
+                else:
+                    title = projects[j].get('title', 'Untitled Project')
+                    matching_projects.append(title)
+ 
         if matching_projects:
             validated_skills.append({'skill': skill, 'projects': matching_projects, 'similarity': max_similarity})
             skill_project_mapping[skill] = matching_projects
         else:
             unvalidated_skills.append(skill)
             skill_project_mapping[skill] = []
-
+ 
     validation_percentage = len(validated_skills) / len(skills)
     validation_score      = validation_percentage * 15.0
-
+ 
     return {
         'validated_skills':      validated_skills,
         'unvalidated_skills':    unvalidated_skills,
@@ -163,7 +194,7 @@ def validate_skills_with_projects(
         'skill_project_mapping': skill_project_mapping,
         'validation_score':      validation_score,
     }
-
+ 
 #01: formatting score
 def _calc_formatting_score(parsed_resume: Dict, text: str) -> float:
 
