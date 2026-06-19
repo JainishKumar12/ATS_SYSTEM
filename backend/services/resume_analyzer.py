@@ -20,6 +20,7 @@ def analyze_full_resume(
     logger.info(f"Groq parsed summary: {parsed_resume.get('professional_summary', '')[:100]!r}")
     logger.info(f"Groq parsed skills count: {len(parsed_resume.get('skills', []))}")
     logger.info(f"Groq parsed experience count: {len(parsed_resume.get('experience', []))}")
+    logger.info(f"Groq parsed projects count: {len(parsed_resume.get('projects', []))}")
 
     skills          = parsed_resume.get('skills', [])
     projects        = parsed_resume.get('projects', [])
