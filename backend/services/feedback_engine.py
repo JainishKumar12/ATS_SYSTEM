@@ -407,6 +407,15 @@ def analyze_issues(
             ),
         ))
 
+    print("Projects:", len(proj_entries))
+    print("Experience:", len(exp_entries))
+    print("Education:", len(edu_entries))
+    print("Skills:", len(skills))
+    print("Validated:", len(validated))
+    print("Unvalidated:", len(unvalidated))
+    print("Action Verbs:", len(action_verbs))
+    print("Formatting Score:", formatting_score)
+    print("Summary:", bool(summary))
     return detected
 
 
