@@ -214,12 +214,17 @@ def render() -> None:
                 access_token=access_token,
                 job_description=job_description,
             )
-            print(analysis)
+            st.write("DEBUG RESPONSE")
+            st.json(analysis)
     except requests.RequestException as exc:
         _show_backend_error(exc)
         return
 
     st.session_state["scorer_analysis"] = analysis
     st.success("✅ Analysis complete!")
+    st.write("Detailed Feedback:")
+    st.json(analysis.get("detailed_feedback"))
+    st.write("Suggestions:")
+    st.json(analysis.get("suggestions"))
     display_results_dashboard(analysis)
     _render_export_buttons(analysis)

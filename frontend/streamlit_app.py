@@ -146,10 +146,7 @@ with st.sidebar:
                 url=oauth["url"],
                 use_container_width=True,
             )
-import os
 
-st.write(os.listdir("frontend"))
-st.write(os.listdir("frontend/views"))
 # main content area - render based on current view
 if st.session_state.current_view == 'landing':
     # import and render landing page 
