@@ -34,13 +34,14 @@ async def lifespan(app:FastAPI):  # Think of yield like a pause button. Everythi
         except OSError:
             subprocess.run(["python", "-m", "spacy", "download", SPACY_MODEL_SECONDARY])
             app.state.nlp = spacy.load(SPACY_MODEL_SECONDARY)
-        logger.info(f'Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}')
-        from sentence_transformers import SentenceTransformer
-        app.state.embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
+    logger.info(f'Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}')
+    from sentence_transformers import SentenceTransformer
+    app.state.embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
     logger.info(f'Loaded {SENTENCE_TRANSFORMER_MODEL}')
 
     logger.info('All models loaded. API is ready to serve requests.')
-
+    assert hasattr(app.state, "nlp")
+    assert hasattr(app.state, "embedder")
     yield
 
     logger.info('shutting down the api!!')

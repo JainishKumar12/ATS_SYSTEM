@@ -94,6 +94,9 @@ def analyze_full_resume(
         scores=scores,
         contact_info=contact_info,
     )
+    print("DETAILED FEEDBACK:")
+    for issue in detailed_feedback:
+        print(issue)
 
     issues_summary = generate_issues_summary(detailed_feedback)
 
