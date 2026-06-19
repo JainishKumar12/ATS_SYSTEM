@@ -4,7 +4,12 @@ from typing import Dict, List, Optional
 from backend.models.schemas import IssueDetail
 from backend.services.groq_parser import parse_resume, parse_job_description
 from backend.services.jd_matcher import compare_resume_with_jd
-from backend.services.feedback_engine import analyze_issues, generate_issues_summary
+from backend.services.feedback_engine import (
+    analyze_issues,
+    generate_issues_summary,
+    generate_suggestions,
+    generate_critical_issues,
+)
 from backend.services.ats_scorer import calculate_overall_score, validate_skills_with_projects
 
 
@@ -94,11 +99,13 @@ def analyze_full_resume(
         scores=scores,
         contact_info=contact_info,
     )
-    print("DETAILED FEEDBACK:")
+    logger.info(f"Detailed feedback generated: {len(detailed_feedback)} issue(s)")
     for issue in detailed_feedback:
-        print(issue)
+        logger.debug(f"  - [{issue.severity_level}] {issue.issue_title}")
 
-    issues_summary = generate_issues_summary(detailed_feedback)
+    issues_summary  = generate_issues_summary(detailed_feedback)
+    suggestions     = generate_suggestions(detailed_feedback)
+    critical_issues = generate_critical_issues(detailed_feedback)
 
     validated_raw   = skill_validation.get('validated_skills', [])
     unvalidated_raw = skill_validation.get('unvalidated_skills', [])
@@ -118,11 +125,8 @@ def analyze_full_resume(
         "validated_count": len(validated_raw),
         "validation_pct":  val_pct,
     }
-    print("ISSUES COUNT:", len(detailed_feedback))
+    logger.info(f"Issues: {len(detailed_feedback)} | Suggestions: {len(suggestions)} | Critical: {len(critical_issues)}")
 
-    for issue in detailed_feedback:
-        print(issue.issue_title)
-        
     return {
         "ATS_score":          scores['overall_score'],
         "ats_score":          scores['overall_score'],
@@ -146,15 +150,14 @@ def analyze_full_resume(
             jd_comparison_result['missing_keywords']
             if jd_comparison_result else []
         ),
-        "strengths": _generate_strengths(parsed_resume, skills, projects, action_verbs, skill_validation, scores),
+        "strengths":             _generate_strengths(parsed_resume, skills, projects, action_verbs, skill_validation, scores),
+        "suggestions":           suggestions,
+        "critical_issues":       critical_issues,
+        "warnings":              [],  # TODO: wire up real warning sources (e.g. parsing fallbacks, low-confidence extraction) if/when available
         "interpretation":    scores.get('overall_interpretation', ''),
         "skill_validation_details": skill_validation_details,
         "experience_months": experience_months,
     }
-    print("ISSUES COUNT:", len(detailed_feedback))
-
-    for issue in detailed_feedback:
-        print(issue.issue_title)
 
 
 def _generate_strengths(

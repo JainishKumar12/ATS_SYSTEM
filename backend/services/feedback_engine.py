@@ -19,13 +19,13 @@ def analyze_issues(
 
     #Unpack frequently-used structured fields once at the top
 
-    exp_entries  = [e for e in parsed_resume.get('experience', []) if isinstance(e, dict)]   # Gets the experience list from parsed resume. The get('experience', []) means if the key doesn't exist, use empty list instead of crashing. The isinstance(e, dict) filters out any corrupted/non-dict entries — defensive programming.
+    exp_entries  = [e for e in parsed_resume.get('experience', []) if isinstance(e, dict)]
     edu_entries  = [e for e in parsed_resume.get('education',  []) if isinstance(e, dict)]
     proj_entries = [p for p in parsed_resume.get('projects',   []) if isinstance(p, dict)]
-    summary      = (parsed_resume.get('professional_summary') or '').strip()  # Handle None to prevent string concatenation errors
+    summary      = (parsed_resume.get('professional_summary') or '').strip()
 
     #Build a combined experience text for regex-based checks that still need text
-    experience_text = '\n'.join(e.get('description', '') for e in exp_entries).strip()   # Joins all experience descriptions into one big text block, separated by newlines. Used later for regex checks like finding numbers. If any entry has no description, get('description', '') returns empty string instead of crashing.
+    experience_text = '\n'.join(e.get('description', '') for e in exp_entries).strip()
 
 
     #1. missig project section
@@ -45,15 +45,12 @@ def analyze_issues(
                 "ATS systems and recruiters look for concrete projects to validate "
                 "that your listed skills have been applied in practice."
             ),
-
             where_it_appears="Resume structure — no 'Projects' header was detected",
-
             how_to_fix=(
                 "Add a 'Projects' section with 2–3 significant projects. "
                 "For each project, include the title, technologies used, "
                 "what you built, and a measurable outcome."
             ),
-
             action_items=[
                 "Add a 'PROJECTS' section heading after your Experience section",
                 "Include 2–3 projects (personal, academic, or open-source)",
@@ -61,7 +58,6 @@ def analyze_issues(
                 "Example: 'E-Commerce Platform — React, Node.js, MongoDB. Handled 500+ transactions/month'",
                 "Link to GitHub or a live demo if available (e.g., github.com/yourname/project)",
             ],
-
             example_improvement=(
                 "Add:\n"
                 "PROJECTS\n"
@@ -148,7 +144,7 @@ def analyze_issues(
         ))
 
     #4. Missing Skills Section 
-    if not parsed_resume.get('skills') and len(skills) < 3:  # only flag if extraction also found very few skills
+    if not parsed_resume.get('skills') and len(skills) < 3:
         detected.append(IssueDetail(
             issue_title="Missing or Weak Skills Section",
             severity_level="High",
@@ -181,43 +177,57 @@ def analyze_issues(
         ))
 
     # 5. Skills Lack Supporting Evidence
+    # FIX: previously only fired when unvalidated > validated (~effectively >50%).
+    # That missed cases like 14/30 (47%) unvalidated, which is still worth flagging.
+    # Now fires at >=30% unvalidated, with severity scaling by how bad it is.
     unvalidated = skill_validation.get('unvalidated_skills', [])
     validated   = skill_validation.get('validated_skills', [])
     total_skills = len(unvalidated) + len(validated)
 
-    if total_skills > 0 and len(unvalidated) > len(validated):
-        unsupported_list = ', '.join(unvalidated[:8])
+    if total_skills > 0:
         pct_unsupported = round((len(unvalidated) / total_skills) * 100)
-        action_items_skills = [
-            f"Mention '{skill}' in a project or experience bullet point" for skill in unvalidated[:5]
-        ]
-        action_items_skills.append("Remove skills you cannot demonstrate with any project or experience")
-        if len(unvalidated) > 5:
-            action_items_skills.append(f"({len(unvalidated) - 5} more unvalidated skills — review each one)")
-        detected.append(IssueDetail(
-            issue_title="Most Skills Lack Supporting Evidence",
-            severity_level="Moderate",
-            ats_impact="High",
-            explanation=(
-                f"{pct_unsupported}% of your listed skills ({len(unvalidated)} out of "
-                f"{total_skills}) are not backed by any mention in your projects or "
-                "experience sections. Recruiters and ATS systems cross-reference "
-                "skills against actual work to verify credibility."
-            ),
-            where_it_appears=f"These skills have no supporting context: {unsupported_list}",
-            how_to_fix=(
-                "For each skill in your Skills section, ensure it appears at least "
-                "once in a project description or experience bullet point. "
-                "Describe how and where you used that technology."
-            ),
-            action_items=action_items_skills,
-            example_improvement=(
-                f"Your skill '{unvalidated[0]}' has no supporting evidence.\n\n"
-                f"Fix: Add to a project or experience bullet:\n"
-                f"'Built a data pipeline using {unvalidated[0]} that processed "
-                "10K records daily, reducing manual effort by 60%.'"
-            ),
-        ))
+        EVIDENCE_THRESHOLD_PCT = 30  # was implicitly ~50% before
+
+        if pct_unsupported >= EVIDENCE_THRESHOLD_PCT:
+            severity = "High" if pct_unsupported >= 50 else "Moderate"
+            unsupported_list = ', '.join(unvalidated[:8])
+            action_items_skills = [
+                f"Mention '{skill}' in a project or experience bullet point" for skill in unvalidated[:5]
+            ]
+            action_items_skills.append("Remove skills you cannot demonstrate with any project or experience")
+            if len(unvalidated) > 5:
+                action_items_skills.append(f"({len(unvalidated) - 5} more unvalidated skills — review each one)")
+
+            title = (
+                "Most Skills Lack Supporting Evidence"
+                if severity == "High"
+                else "Some Skills Lack Supporting Evidence"
+            )
+
+            detected.append(IssueDetail(
+                issue_title=title,
+                severity_level=severity,
+                ats_impact="High" if severity == "High" else "Moderate",
+                explanation=(
+                    f"{pct_unsupported}% of your listed skills ({len(unvalidated)} out of "
+                    f"{total_skills}) are not backed by any mention in your projects or "
+                    "experience sections. Recruiters and ATS systems cross-reference "
+                    "skills against actual work to verify credibility."
+                ),
+                where_it_appears=f"These skills have no supporting context: {unsupported_list}",
+                how_to_fix=(
+                    "For each skill in your Skills section, ensure it appears at least "
+                    "once in a project description or experience bullet point. "
+                    "Describe how and where you used that technology."
+                ),
+                action_items=action_items_skills,
+                example_improvement=(
+                    f"Your skill '{unvalidated[0]}' has no supporting evidence.\n\n"
+                    f"Fix: Add to a project or experience bullet:\n"
+                    f"'Built a data pipeline using {unvalidated[0]} that processed "
+                    "10K records daily, reducing manual effort by 60%.'"
+                ),
+            ))
 
     #6. Weak Action Verbs 
     description_lines = [
@@ -338,17 +348,34 @@ def analyze_issues(
                 ),
             ))
 
-    # 9. Low Formatting Score 
+    # 9. Formatting Score
+    # FIX: previously only fired below 10/20 ("High" severity only).
+    # That missed a "Good but improvable" band like 10-15/20.
+    # Now adds a Moderate tier so scores like 12/20 still produce feedback.
     formatting_score = scores.get('formatting_score', 20)
+
     if formatting_score < 10:
+        f_severity, f_title = "High", "Poor Resume Formatting"
+    elif formatting_score < 16:
+        f_severity, f_title = "Moderate", "Formatting Could Be Improved"
+    else:
+        f_severity, f_title = None, None
+
+    if f_severity:
+        is_high = f_severity == "High"
         detected.append(IssueDetail(
-            issue_title="Poor Resume Formatting",
-            severity_level="High",
-            ats_impact="High",
+            issue_title=f_title,
+            severity_level=f_severity,
+            ats_impact="High" if is_high else "Moderate",
             explanation=(
-                f"Your formatting score is {formatting_score}/20, which indicates "
-                "problems like missing section headers, inconsistent structure, "
-                "or non-standard layout that ATS parsers struggle with."
+                f"Your formatting score is {formatting_score}/20. "
+                + (
+                    "This indicates problems like missing section headers, inconsistent "
+                    "structure, or a non-standard layout that ATS parsers struggle with."
+                    if is_high else
+                    "Your structure is mostly solid, but a few formatting tweaks would "
+                    "improve ATS parsing and recruiter readability further."
+                )
             ),
             where_it_appears="Overall document structure and formatting",
             how_to_fix=(
@@ -357,10 +384,9 @@ def analyze_issues(
                 "points, standard fonts, and avoid tables, columns, or graphics."
             ),
             action_items=[
-                "Switch to a single-column layout (avoid two-column templates for ATS)",
                 "Use standard section headers: EXPERIENCE, EDUCATION, SKILLS, PROJECTS",
                 "Use bullet points (•) consistently — don't mix with dashes or asterisks",
-                "Remove all tables, text boxes, headers/footers, and images — ATS cannot parse them",
+                "Remove tables, text boxes, headers/footers, and images — ATS cannot parse them",
                 "Use a standard font (Calibri, Arial, Times New Roman) at 10–12pt",
                 "Order sections: Contact → Summary → Experience → Projects → Education → Skills",
             ],
@@ -407,6 +433,41 @@ def analyze_issues(
             ),
         ))
 
+    # 11. NEW: Empty-state fallback.
+    # If every check above passed cleanly, `detected` would previously be []
+    # and the API would silently return empty issues_summary/detailed_feedback,
+    # which looks like a bug to the user even though it's a genuinely good resume.
+    # This makes that state explicit instead of blank.
+    if not detected:
+        ats_score = scores.get('ats_score') or scores.get('total_score')
+        score_note = f" (ATS score: {ats_score}/100)" if ats_score is not None else ""
+        detected.append(IssueDetail(
+            issue_title="No Critical Issues Detected",
+            severity_level="Low",
+            ats_impact="Low",
+            explanation=(
+                f"Your resume passed all automated checks{score_note} — sections, "
+                "skills evidence, formatting, action verbs, and quantified achievements "
+                "all meet the baseline bar. This doesn't mean it's unimprovable, just "
+                "that nothing rose to a flagged issue."
+            ),
+            where_it_appears="N/A — this is a summary status, not a specific location",
+            how_to_fix=(
+                "Consider tailoring keyword density to a specific job description for "
+                "an extra edge, or have a peer/mentor review tone and clarity, since "
+                "those aren't fully capturable by automated checks."
+            ),
+            action_items=[
+                "Run this resume against a specific job description for keyword-match scoring",
+                "Ask a peer or mentor for a manual readability/tone review",
+                "Re-check this analysis after any major resume update",
+            ],
+            example_improvement=(
+                "No structural fix needed right now — focus on tailoring this resume "
+                "to specific job descriptions for incremental gains."
+            ),
+        ))
+
     print("Projects:", len(proj_entries))
     print("Experience:", len(exp_entries))
     print("Education:", len(edu_entries))
@@ -416,6 +477,7 @@ def analyze_issues(
     print("Action Verbs:", len(action_verbs))
     print("Formatting Score:", formatting_score)
     print("Summary:", bool(summary))
+    print("Issues Detected:", len(detected))
     return detected
 
 
