@@ -214,6 +214,7 @@ def render() -> None:
                 access_token=access_token,
                 job_description=job_description,
             )
+            print(analysis)
     except requests.RequestException as exc:
         _show_backend_error(exc)
         return
