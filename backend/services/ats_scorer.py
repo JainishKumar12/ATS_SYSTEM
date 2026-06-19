@@ -79,16 +79,6 @@ def detect_location_info(text: str, nlp: spacy.Language) -> Dict:
         'penalty_applied':    penalty,
     }
 
-def _skill_matches(skill: str, text: str, embedder: SentenceTransformer, threshold: float) -> Tuple[bool, float]:
-
-    #fast, o(n) directly check if skill is a substring of the text (case-insensitive)
-    if skill.lower() in text.lower():
-        return True, 1.0
-    
-    #slow, semantic similarity check using sentence embeddings
-    sim = _calculate_semantic_similarity(skill, text, embedder)
-    return sim >= threshold, sim
-
 #Skill validation
 def validate_skills_with_projects(
     skills: List[str],
@@ -114,8 +104,11 @@ def validate_skills_with_projects(
     ).strip()
  
     project_texts = [
-        f"{p.get('title', '')} {p.get('description', '')}".strip() or "untitled"
-        for p in projects
+    (
+        f"{p.get('title', '')} {p.get('description', '')} "
+        + " ".join(p.get('technologies', []) or [])
+    ).strip() or "untitled"
+    for p in projects
     ]
  
     # Build the full list of "target" texts we need to compare skills against:
