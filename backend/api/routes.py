@@ -102,14 +102,18 @@ async def analyze_resume(
         jd_match_analysis=jd_comparison_result,
         skill_validation_details=skill_val_details,
 
-        # Retro-compatibility fields : The comment "Retro-compatibility fields" means some frontend code or older API consumers still use the old field names. Rather than breaking them, both old and new names are populated. The if jd_comparison_result else 0.0 guard handles the case where no JD was provided.
         ats_score=result['ats_score'],
         keyword_match=jd_comparison_result.match_percentage if jd_comparison_result else 0.0,
         missing_keywords=result.get('missing_keywords', []),
         matched_keywords=result.get('matched_keywords', []),
         skills=list(result.get('skills', [])[:20]),
         jd_comparison=jd_comparison_result,
-        interpretation=result.get('interpretation', '')
+        interpretation=result.get('interpretation', ''),
+
+        strengths=result.get('strengths', []),
+        suggestions=result.get('suggestions', []),
+        critical_issues=result.get('critical_issues', []),
+        warnings=result.get('warnings', [])
     )
 
     # Critically — this is outside the main try/except and only logs a warning on failure. If the database is down, the user still gets their analysis result. The save failing is not a reason to return a 500 error. The comment "non-blocking" signals this design decision intentionally.

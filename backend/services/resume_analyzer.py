@@ -118,7 +118,11 @@ def analyze_full_resume(
         "validated_count": len(validated_raw),
         "validation_pct":  val_pct,
     }
+    print("ISSUES COUNT:", len(detailed_feedback))
 
+    for issue in detailed_feedback:
+        print(issue.issue_title)
+        
     return {
         "ATS_score":          scores['overall_score'],
         "ats_score":          scores['overall_score'],

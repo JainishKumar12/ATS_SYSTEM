@@ -65,7 +65,7 @@ def _extract_pdf_hyperlinks(file_data: bytes) -> str:
     try:
         reader = PyPDF2.PdfReader(io.BytesIO(file_data))
         for page in reader.pages:
-            if '/Annots' in page:
+            if '/Annots' not in page:
                 continue
             for annot_ref in page['/Annots']:
                 try:
