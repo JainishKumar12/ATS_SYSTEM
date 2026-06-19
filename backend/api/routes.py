@@ -22,10 +22,10 @@ def _clean(text: str) -> str:
 
 @router.post('/analyze-resume', response_model=AnalysisResponse)
 async def analyze_resume(
-    request: Request,               # request: Request — the raw FastAPI request object, used to access app-level shared state, resume: UploadFile = File(...) — the uploaded file, ... means required, job_description: str = Form('') — optional form field, defaults to empty string, user_id: str = Depends(get_current_user) — dependency injection, FastAPI automatically calls get_current_user() and passes its return value. This is how auth works without repeating it in every route.
+    request: Request,
     resume: UploadFile = File(..., description='Resume file — PDF or DOCX, max 5 MB'),
     job_description: str = Form('', description='Job description text (optional)'),
-    user_id: str = "test_user",
+    user_id: str = Depends(get_current_user),
 ):
     warnings: List[str] = []
 
