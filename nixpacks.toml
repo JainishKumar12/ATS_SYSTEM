@@ -1,2 +1,11 @@
 [phases.setup]
-nixPkgs = ["file"]
+nixPkgs = [
+    "...", # whatever you already have here for python/spacy etc — keep these
+    "pango",
+    "cairo",
+    "gdk-pixbuf",
+    "glib",
+    "harfbuzz",
+    "fontconfig",
+    "shared-mime-info"
+]
