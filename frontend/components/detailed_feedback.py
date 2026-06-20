@@ -7,6 +7,10 @@ from frontend.components._helpers import get_severity_style
 
 SEVERITY_ORDER = ["critical", "high", "medium", "low"]
 
+# Below this many flagged issues, we lead with encouragement instead of
+# letting a short list read as "feedback is missing/broken."
+LOW_ISSUE_COUNT_THRESHOLD = 3
+
 
 def _group_by_severity(issues: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     grouped: Dict[str, List[Dict[str, Any]]] = {level: [] for level in SEVERITY_ORDER}
@@ -53,15 +57,38 @@ def _render_issue(issue: Dict[str, Any]) -> None:
             st.code(example, language="text")
 
 
+def _intro_message(issue_count: int, has_high_severity: bool) -> str:
+    """Short framing line shown above the issue list, scaled to how clean the resume is."""
+    if issue_count == 0:
+        return (
+            "🎉 **Your resume looks great!** No issues were flagged in this analysis — "
+            "it's already in strong shape against the checks we run."
+        )
+    if issue_count <= LOW_ISSUE_COUNT_THRESHOLD and not has_high_severity:
+        return (
+            "✅ **Your resume is in solid shape.** Only a couple of targeted "
+            "improvements below — addressing these can push your score even higher."
+        )
+    return ""  # let the issue list speak for itself once there's real volume/severity
+
+
 def display_detailed_feedback(analysis: Dict[str, Any]) -> None:
     issues = analysis.get("detailed_feedback") or []
-    if not issues:
-        return  # backend produced no per-issue feedback this run
 
     st.markdown("### 🔍 Detailed Feedback")
-    st.caption(f"{len(issues)} issue(s) flagged — grouped by severity.")
 
     grouped = _group_by_severity(issues)
+    has_high_severity = bool(grouped.get("critical") or grouped.get("high"))
+
+    intro = _intro_message(len(issues), has_high_severity)
+    if intro:
+        st.success(intro)
+
+    if not issues:
+        return  # nothing further to render — the success message above covers it
+
+    st.caption(f"{len(issues)} issue(s) flagged — grouped by severity.")
+
     for level in SEVERITY_ORDER:
         items = grouped.get(level, [])
         if not items:
