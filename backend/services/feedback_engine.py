@@ -484,3 +484,28 @@ def analyze_issues(
 def generate_issues_summary(detected_issues: List[IssueDetail]) -> List[str]:
     """Extract issue titles to formulate the issues_summary list."""
     return [issue.issue_title for issue in detected_issues]
+
+
+def generate_suggestions(detected_issues: List[IssueDetail]) -> List[str]:
+    """
+    Derive a flat, user-facing suggestions list from detected issues.
+    One short actionable line per issue, pulled from how_to_fix.
+    Skips the 'No Critical Issues Detected' placeholder issue itself,
+    but still surfaces its action_items as light suggestions.
+    """
+    suggestions: List[str] = []
+    for issue in detected_issues:
+        if issue.issue_title == "No Critical Issues Detected":
+            suggestions.extend(issue.action_items)
+            continue
+        suggestions.append(f"{issue.issue_title}: {issue.how_to_fix}")
+    return suggestions
+
+
+def generate_critical_issues(detected_issues: List[IssueDetail]) -> List[str]:
+    """Extract titles of only High-severity issues, for a 'critical_issues' summary list."""
+    return [
+        issue.issue_title
+        for issue in detected_issues
+        if issue.severity_level == "High"
+    ]
