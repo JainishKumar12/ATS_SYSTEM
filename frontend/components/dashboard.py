@@ -42,8 +42,7 @@ def display_results_dashboard(analysis: Dict[str, Any]) -> None:
 
     display_detailed_feedback(analysis)
     st.markdown("---")
-    
-    st.write("DEBUG KEYS:", analysis.keys())
+
     display_action_items(analysis)
     st.markdown("---")
 
