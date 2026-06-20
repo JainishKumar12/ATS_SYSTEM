@@ -1,11 +1,15 @@
 [phases.setup]
 nixPkgs = [
-    "...", # whatever you already have here for python/spacy etc — keep these
+    "...",
     "pango",
     "cairo",
     "gdk-pixbuf",
     "glib",
     "harfbuzz",
     "fontconfig",
-    "shared-mime-info"
+    "freetype",
+    "shared-mime-info",
 ]
+
+[phases.install]
+cmds = ["pip install --break-system-packages -r requirements.txt"]
