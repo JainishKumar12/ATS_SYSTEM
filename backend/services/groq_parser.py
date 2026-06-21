@@ -41,7 +41,7 @@ RESUME_USER_PROMPT = """Extract the following from this resume and return as JSO
       "start_date": "",
       "end_date": "",
       "duration_months": 0,
-      "description": ""
+      "description": "Copy ALL bullet points under this role, concatenated as written. Do NOT summarize — preserve every technology, tool, and detail mentioned in every bullet."
     }}
   ],
   "education": [
@@ -55,7 +55,7 @@ RESUME_USER_PROMPT = """Extract the following from this resume and return as JSO
   "projects": [
     {{
       "title": "project name",
-      "description": "what the project does and how it was built",
+      "description": "Copy ALL bullet points/lines under this project, concatenated as written, preserving every technology, tool, and detail mentioned in every bullet. Do NOT summarize or paraphrase the project down to a single sentence — include the full text so nothing mentioned in any bullet is lost.",
       "technologies": ["tech", "used"]
     }}
   ],
@@ -66,6 +66,7 @@ RESUME_USER_PROMPT = """Extract the following from this resume and return as JSO
 Important instructions:
 - For duration_months, calculate the number of months between start_date and end_date. If end_date is "Present" or "Current", calculate from start_date to now.
 - For skills, extract ALL technical and soft skills mentioned anywhere in the resume.
+- For project and experience "description" fields, copy the full text of every bullet point under that entry — do not condense multiple bullets into a short summary. Every technology or tool named in any bullet must appear somewhere in the description text.
 - For action_verbs, find verbs that start bullet points or describe achievements.
 - For keywords, extract noun phrases and technical terms relevant to ATS matching.
 - Return ONLY valid JSON. No markdown code fences, no explanation.
